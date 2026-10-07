@@ -1,0 +1,7 @@
+{
+  "name": "agent-search",
+  "private": true,
+  "type": "module",
+  "description": "Is the deflated Sharpe ratio calibrated when an AI agent chooses the trials? Synthetic markets with known truth.",
+  "scripts": { "test": "node --test test/*.test.mjs" }
+}
