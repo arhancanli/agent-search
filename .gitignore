@@ -1,2 +1,6 @@
 node_modules/
 runs/
+
+# local tool state
+.claude-flow/
+ruvector.db
