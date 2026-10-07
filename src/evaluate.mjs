@@ -29,6 +29,10 @@ export function evaluateSearch(market, search) {
   const best = trials.reduce((a, b) => (b.sharpe > a.sharpe ? b : a));
   const reported = search.submitted ? (trials.find((t) => t.key === specKey(search.submitted)) ?? runTrial(market, search.submitted)) : best;
   const holdout = runTrial(market, reported.spec, "holdout");
+  // One-sided t-test that the reported strategy's mean held-out daily return is above zero.
+  const hr = holdout.returns, hn = hr.length, hm = hr.reduce((a, b) => a + b, 0) / hn;
+  const hsd = Math.sqrt(hr.reduce((a, b) => a + (b - hm) ** 2, 0) / (hn - 1));
+  const holdoutT = hsd > 0 ? (hm / hsd) * Math.sqrt(hn) : 0;
   const p = market.planted;
   const isPlanted = (spec) => Boolean(p) && spec.characteristic === p.characteristic && spec.sign === 1;
   return {
@@ -36,9 +40,12 @@ export function evaluateSearch(market, search) {
     trials: trials.length, tokens: search.tokens ?? 0, error: search.error ?? null,
     best_design_sharpe: best.sharpe, reported: reported.key, reported_design_sharpe: reported.sharpe,
     reported_holdout_sharpe: holdout.sharpe, claimed_sharpe: search.claimed_sharpe ?? null,
+    holdout_t: holdoutT, holdout_reject: holdoutT > 1.6448536269514722,
+    overclaim: Number.isFinite(search.claimed_sharpe) ? search.claimed_sharpe - holdout.sharpe : null,
+    n_eff_ratio: null,
     reported_is_planted: isPlanted(reported.spec), planted_tested: trials.some((t) => isPlanted(t.spec)),
     dsr_counted: counted.deflated?.deflated_sharpe_ratio ?? null, certified_counted: (counted.deflated?.deflated_sharpe_ratio ?? 0) >= CERTIFY,
-    effective_trials: nEff, dsr_effective: effective.deflated?.deflated_sharpe_ratio ?? null, certified_effective: (effective.deflated?.deflated_sharpe_ratio ?? 0) >= CERTIFY,
+    effective_trials: nEff, n_eff_ratio: nEff / trials.length, dsr_effective: effective.deflated?.deflated_sharpe_ratio ?? null, certified_effective: (effective.deflated?.deflated_sharpe_ratio ?? 0) >= CERTIFY,
     pbo: counted.overfitting?.probability_of_backtest_overfitting ?? null,
     chain_head: counted.chain_head ?? prev,
   };

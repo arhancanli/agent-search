@@ -1,0 +1,40 @@
+{
+  "schema": "canli.agent-search.prereg.v1",
+  "written": "2026-10-07. Committed, with src/run.mjs and src/score.mjs, before any full run. Development used one smoke-test agent search (gpt-5-mini, B = 20, market seed 500, a seed outside the registered ranges) and compute-only checks of the generator, grammar and baselines on seeds 1-240.",
+  "author": "Arhan Canli",
+  "question": "When an LLM agent searches trading strategies with a backtest tool and adapts each trial to earlier results, is the deflated Sharpe ratio (DSR) still calibrated, and what does protect against false discoveries?",
+  "closest_prior_work": "Gençay (2026, arXiv:2608.27734) deflates an LLM agent's best strategy by its recorded trial count on real data, without ground truth and without testing calibration under adaptivity.",
+  "code": {"market": "src/market.mjs", "grammar": "src/grammar.mjs (840 strategies)", "searchers": "src/searchers.mjs", "evaluation": "src/evaluate.mjs", "engine_and_ledger": "vendor/ (canlicapital commit in vendor/SOURCE_COMMIT)"},
+  "markets": {
+    "shape": "100 assets, 10 characteristics (AR(1), phi 0.99, standardized daily), 756 design days and 504 held-out days; market factor 1% and idiosyncratic 2% daily volatility; trading cost 5 bp per unit traded.",
+    "null": "Seeds 1000001-1000150: no characteristic predicts returns.",
+    "alternative": "Seeds 2000001-2000100: characteristic (seed mod 10) at a one-day lag, target annualized Sharpe 2.0 for its quintile spread (realized about 82% of target in development).",
+    "baseline_only": "Seeds 3000001-3002000 (null) and 4000001-4001000 (alternative, same rule): random and grid search only, for precise baseline rates."
+  },
+  "searchers": {
+    "agent": "Adaptive: backtests up to 10 strategies per call, sees every result, then submits one strategy and an expected Sharpe ratio; at most 40 turns.",
+    "agent_na": "Non-adaptive: proposes its strategies in one call before seeing any result; the best by design-window Sharpe is reported.",
+    "random": "B distinct strategies uniformly at random (seed = market seed).",
+    "grid": "Coarse-to-fine grid: every characteristic at each setting before the next, first B."
+  },
+  "budgets": [20, 100],
+  "models": ["gpt-5-mini", "gpt-5.4-mini"],
+  "model_settings": "OpenAI chat completions, provider-default temperature, tool_choice required; prompts are fixed in src/searchers.mjs.",
+  "outcomes": {
+    "certified_counted": "DSR >= 0.95 with N = recorded trials and the ledger's cross-trial Sharpe dispersion.",
+    "certified_effective": "DSR >= 0.95 with N = round(participation ratio of the trials' return correlations), at least 2.",
+    "holdout_reject": "One-sided t-test at 5% that the reported strategy's mean held-out daily return is above zero.",
+    "found_planted": "Under the alternative, the reported strategy uses the planted characteristic with sign +1.",
+    "overclaim": "Agent's stated expected Sharpe minus the reported strategy's held-out Sharpe (adaptive agent only).",
+    "n_eff_ratio": "Effective trials divided by recorded trials."
+  },
+  "predictions": [
+    {"id": "P1", "statement": "Null, B = 100, both models pooled: the adaptive agent is certified (certified_counted) more often than random search on the same markets; one-sided exact McNemar test on discordant pairs, alpha 0.05."},
+    {"id": "P2", "statement": "Null: holdout_reject has a rate of at most 7% for every searcher, budget and model (an untouched held-out window keeps the test near its level whatever the search)."},
+    {"id": "P3", "statement": "Null, B = 100, both models pooled: the adaptive agent's n_eff_ratio is below random search's on the same markets in more than half of the markets; one-sided sign test, alpha 0.05."},
+    {"id": "P4", "statement": "Null, both budgets and models pooled: the adaptive agent's mean overclaim is above zero; one-sided t-test, alpha 0.05."},
+    {"id": "P5", "statement": "Alternative, B = 100, both models pooled: the adaptive agent reports the planted strategy more often than random search on the same markets; one-sided exact McNemar test, alpha 0.05."}
+  ],
+  "failures": "A search that errors (API failure, no submission) is retried once on the same market; if it fails again it is reported as failed and excluded from rates, with the count reported.",
+  "reporting": "Every cell is reported whether or not a prediction holds. src/score.mjs scores the predictions without hand input. Nothing in this file is changed after the runs start; anything else is exploratory."
+}
